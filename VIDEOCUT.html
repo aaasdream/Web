@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Video Trimmer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f0f0f0;  /* 淺灰色背景 */
+            color: #333;  /* 深灰色文字 */
+        }
+        #sliderContainer {
+            position: relative;
+            width: 400px;
+            height: 20px;
+            background: grey;
+        }
+        .thumb {
+            position: absolute;
+            width: 10px;
+            height: 20px;
+            background: blue;
+            cursor: pointer;
+        }
+        #selectedArea {
+            position: absolute;
+            height: 20px;
+            background: lightblue;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Video Trimmer</h1>
+
+<label for="fileInput">選擇影片:</label>
+<input type="file" id="fileInput" accept="video/mp4"><br><br>
+
+<video id="video" controls width="400"></video><br><br>
+
+<div id="sliderContainer">
+    <div id="selectedArea" style="left: 0px; width: 390px;"></div>
+    <div id="startThumb" class="thumb" style="left: 0px;"></div>
+    <div id="endThumb" class="thumb" style="left: 390px;"></div>
+</div><br>
+
+<button id="trimButton">剪輯完成</button>
+<a id="downloadLink" style="display: none;">下載剪接後的影片</a>
+
+<!-- 使用說明 -->
+<h2>使用說明：</h2>
+<p>1. 使用上方的文件輸入選擇一個 MP4 影片。</p>
+<p>2. 使用滑塊選擇影片的開始和結束時間。</p>
+<p>3. 點擊 "剪輯完成" 按鈕進行剪輯。</p>
+<p>4. 下載剪接後的影片。</p>
+
+<script>
+const fileInput = document.getElementById('fileInput');
+const video = document.getElementById('video');
+const sliderContainer = document.getElementById('sliderContainer');
+const trimButton = document.getElementById('trimButton');
+const downloadLink = document.getElementById('downloadLink');
+const selectedArea = document.getElementById('selectedArea');
+
+let videoDuration;
+let dragTarget = null;
+
+fileInput.addEventListener('change', function() {
+    const file = this.files[0];
+    const url = URL.createObjectURL(file);
+    video.src = url;
+    video.onloadedmetadata = function() {
+        videoDuration = video.duration;
+    };
+});
+
+const startThumb = document.getElementById('startThumb');
+const endThumb = document.getElementById('endThumb');
+
+startThumb.addEventListener('mousedown', dragStart);
+endThumb.addEventListener('mousedown', dragStart);
+
+function dragStart(event) {
+    dragTarget = event.target;
+    document.addEventListener('mousemove', dragMove);
+    document.addEventListener('mouseup', dragEnd);
+}
+
+function dragMove(event) {
+    const rect = sliderContainer.getBoundingClientRect();
+    let newX = event.clientX - rect.left;
+    newX = Math.min(rect.width, Math.max(0, newX));
+    dragTarget.style.left = newX + 'px';
+    video.currentTime = (newX / rect.width) * videoDuration;
+
+    // 更新 selectedArea 的寬度和位置
+    const startLeft = parseFloat(startThumb.style.left);
+    const endLeft = parseFloat(endThumb.style.left);
+    selectedArea.style.left = Math.min(startLeft, endLeft) + 'px';
+    selectedArea.style.width = Math.abs(endLeft - startLeft) + 'px';
+}
+
+function dragEnd() {
+    document.removeEventListener('mousemove', dragMove);
+    document.removeEventListener('mouseup', dragEnd);
+    dragTarget = null;
+}
+
+trimButton.addEventListener('click', function() {
+    const start = parseFloat(startThumb.style.left) / sliderContainer.offsetWidth * videoDuration;
+    const end = parseFloat(endThumb.style.left) / sliderContainer.offsetWidth * videoDuration;
+
+    if (start >= end) {
+        alert('結束時間必須大於開始時間');
+        return;
+    }
+
+    const stream = video.captureStream();
+    const recorder = new MediaRecorder(stream);
+    let chunks = [];
+
+    recorder.ondataavailable = e => chunks.push(e.data);
+    recorder.onstop = () => {
+        const blob = new Blob(chunks, { type: 'video/mp4' });
+        const url = URL.createObjectURL(blob);
+        downloadLink.href = url;
+        downloadLink.download = 'trimmed-video.mp4';
+        downloadLink.style.display = 'block';
+    };
+
+    recorder.start();
+    video.currentTime = start;
+    video.play();
+
+    setTimeout(() => {
+        recorder.stop();
+        video.pause();
+    }, (end - start) * 1000);
+});
+</script>
+
+</body>
+</html>
