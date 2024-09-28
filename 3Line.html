@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Emoji三消游戏</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
+            touch-action: none;
+        }
+        #game-container {
+            text-align: center;
+        }
+        #game-board {
+            display: grid;
+            grid-template-columns: repeat(8, 50px);
+            gap: 2px;
+            margin: 20px auto;
+            background-color: #fff;
+            border: 2px solid #333;
+            border-radius: 10px;
+            padding: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        .cell {
+            width: 50px;
+            height: 50px;
+            font-size: 30px;
+            text-align: center;
+            line-height: 50px;
+            border: 1px solid #ccc;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            border-radius: 5px;
+            user-select: none;
+        }
+        .cell.falling {
+            animation: fall 0.5s ease-in;
+        }
+        @keyframes fall {
+            0% { transform: translateY(-50px); }
+            100% { transform: translateY(0); }
+        }
+        .particle {
+            position: absolute;
+            pointer-events: none;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <h1>Emoji三消游戏</h1>
+        <div id="game-board"></div>
+    </div>
+    <script>
+        const emojis = ['🍎', '🍌', '🍇', '🍊', '🍓', '🍉', '🍍', '🥝'];
+        const boardSize = 8;
+        let board = [];
+        let selectedCell = null;
+        let touchStartX, touchStartY;
+
+        function initBoard() {
+            const gameBoard = document.getElementById('game-board');
+            for (let i = 0; i < boardSize; i++) {
+                board[i] = [];
+                for (let j = 0; j < boardSize; j++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.dataset.row = i;
+                    cell.dataset.col = j;
+                    cell.addEventListener('click', cellClick);
+                    cell.addEventListener('touchstart', touchStart, {passive: false});
+                    cell.addEventListener('touchmove', touchMove, {passive: false});
+                    cell.addEventListener('touchend', touchEnd);
+                    gameBoard.appendChild(cell);
+                    board[i][j] = getRandomEmoji();
+                    cell.textContent = board[i][j];
+                }
+            }
+            checkMatches();
+        }
+
+        function getRandomEmoji() {
+            return emojis[Math.floor(Math.random() * emojis.length)];
+        }
+
+        function cellClick(event) {
+            handleCellInteraction(event.target);
+        }
+
+        function touchStart(event) {
+            event.preventDefault();
+            touchStartX = event.touches[0].clientX;
+            touchStartY = event.touches[0].clientY;
+        }
+
+        function touchMove(event) {
+            event.preventDefault();
+        }
+
+        function touchEnd(event) {
+            const touchEndX = event.changedTouches[0].clientX;
+            const touchEndY = event.changedTouches[0].clientY;
+            const dx = touchEndX - touchStartX;
+            const dy = touchEndY - touchStartY;
+
+            if (Math.abs(dx) > 20 || Math.abs(dy) > 20) {
+                const cell = event.target;
+                const row = parseInt(cell.dataset.row);
+                const col = parseInt(cell.dataset.col);
+
+                let nextCell;
+                if (Math.abs(dx) > Math.abs(dy)) {
+                    nextCell = document.querySelector(`[data-row="${row}"][data-col="${col + (dx > 0 ? 1 : -1)}"]`);
+                } else {
+                    nextCell = document.querySelector(`[data-row="${row + (dy > 0 ? 1 : -1)}"][data-col="${col}"]`);
+                }
+
+                if (nextCell) {
+                    swapCells(cell, nextCell);
+                    if (!checkMatches()) {
+                        setTimeout(() => swapCells(cell, nextCell), 600);
+                    }
+                }
+            } else {
+                handleCellInteraction(event.target);
+            }
+        }
+
+        function handleCellInteraction(cell) {
+            if (selectedCell) {
+                if (isAdjacent(selectedCell, cell)) {
+                    swapCells(selectedCell, cell);
+                    if (!checkMatches()) {
+                        setTimeout(() => swapCells(selectedCell, cell), 600);
+                    }
+                }
+                selectedCell.style.border = '1px solid #ccc';
+                selectedCell = null;
+            } else {
+                selectedCell = cell;
+                selectedCell.style.border = '2px solid red';
+            }
+        }
+
+        function isAdjacent(cell1, cell2) {
+            const row1 = parseInt(cell1.dataset.row);
+            const col1 = parseInt(cell1.dataset.col);
+            const row2 = parseInt(cell2.dataset.row);
+            const col2 = parseInt(cell2.dataset.col);
+            return (Math.abs(row1 - row2) + Math.abs(col1 - col2)) === 1;
+        }
+
+        function swapCells(cell1, cell2) {
+            const row1 = parseInt(cell1.dataset.row);
+            const col1 = parseInt(cell1.dataset.col);
+            const row2 = parseInt(cell2.dataset.row);
+            const col2 = parseInt(cell2.dataset.col);
+
+            const temp = board[row1][col1];
+            board[row1][col1] = board[row2][col2];
+            board[row2][col2] = temp;
+
+            const rect1 = cell1.getBoundingClientRect();
+            const rect2 = cell2.getBoundingClientRect();
+            const deltaX = rect2.left - rect1.left;
+            const deltaY = rect2.top - rect1.top;
+
+            cell1.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
+            cell2.style.transform = `translate(${-deltaX}px, ${-deltaY}px)`;
+
+            setTimeout(() => {
+                cell1.style.transform = '';
+                cell2.style.transform = '';
+                cell1.textContent = board[row1][col1];
+                cell2.textContent = board[row2][col2];
+            }, 300);
+        }
+
+        function createParticles(x, y, emoji) {
+            const particleCount = 10;
+            for (let i = 0; i < particleCount; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                particle.textContent = emoji;
+                particle.style.left = `${x}px`;
+                particle.style.top = `${y}px`;
+                document.body.appendChild(particle);
+
+                const angle = Math.random() * Math.PI * 2;
+                const speed = 1 + Math.random() * 3;
+                const radius = 50 + Math.random() * 50;
+                const startTime = Date.now();
+
+                function animateParticle() {
+                    const elapsedTime = Date.now() - startTime;
+                    const progress = elapsedTime / 1000; // 动画持续1秒
+
+                    if (progress < 1) {
+                        const currentRadius = radius * progress;
+                        particle.style.left = `${x + currentRadius * Math.cos(angle)}px`;
+                        particle.style.top = `${y + currentRadius * Math.sin(angle)}px`;
+                        particle.style.opacity = 1 - progress;
+                        particle.style.transform = `scale(${1 - progress})`;
+                        requestAnimationFrame(animateParticle);
+                    } else {
+                        particle.remove();
+                    }
+                }
+
+                requestAnimationFrame(animateParticle);
+            }
+        }
+
+        function checkMatches() {
+            let matched = false;
+            for (let i = 0; i < boardSize; i++) {
+                for (let j = 0; j < boardSize; j++) {
+                    if (checkMatch(i, j)) {
+                        matched = true;
+                    }
+                }
+            }
+            if (matched) {
+                setTimeout(fillBoard, 1000);
+            }
+            return matched;
+        }
+
+        function checkMatch(row, col) {
+            const emoji = board[row][col];
+            let matchedCells = [];
+
+            // 检查水平方向
+            let horizontalMatch = [{row, col}];
+            for (let i = col + 1; i < boardSize && board[row][i] === emoji; i++) {
+                horizontalMatch.push({row, col: i});
+            }
+            for (let i = col - 1; i >= 0 && board[row][i] === emoji; i--) {
+                horizontalMatch.push({row, col: i});
+            }
+            if (horizontalMatch.length >= 3) matchedCells = matchedCells.concat(horizontalMatch);
+
+            // 检查垂直方向
+            let verticalMatch = [{row, col}];
+            for (let i = row + 1; i < boardSize && board[i][col] === emoji; i++) {
+                verticalMatch.push({row: i, col});
+            }
+            for (let i = row - 1; i >= 0 && board[i][col] === emoji; i--) {
+                verticalMatch.push({row: i, col});
+            }
+            if (verticalMatch.length >= 3) matchedCells = matchedCells.concat(verticalMatch);
+
+            // 移除重复的单元格
+            matchedCells = [...new Set(matchedCells.map(JSON.stringify))].map(JSON.parse);
+
+            if (matchedCells.length >= 3) {
+                matchedCells.forEach(cell => {
+                    const element = document.querySelector(`[data-row="${cell.row}"][data-col="${cell.col}"]`);
+                    const rect = element.getBoundingClientRect();
+                    createParticles(rect.left + rect.width / 2, rect.top + rect.height / 2, board[cell.row][cell.col]);
+                    
+                    setTimeout(() => {
+                        board[cell.row][cell.col] = '';
+                        element.textContent = '';
+                    }, 100);
+                });
+                return true;
+            }
+            return false;
+        }
+
+        function fillBoard() {
+            for (let col = 0; col < boardSize; col++) {
+                let emptyCell = boardSize - 1;
+                for (let row = boardSize - 1; row >= 0; row--) {
+                    if (board[row][col] !== '') {
+                        if (row !== emptyCell) {
+                            board[emptyCell][col] = board[row][col];
+                            const targetCell = document.querySelector(`[data-row="${emptyCell}"][data-col="${col}"]`);
+                            const sourceCell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+                            targetCell.classList.add('falling');
+                            targetCell.textContent = board[row][col];
+                            board[row][col] = '';
+                            sourceCell.textContent = '';
+                            setTimeout(() => {
+                                targetCell.classList.remove('falling');
+                            }, 500);
+                        }
+                        emptyCell--;
+                    }
+                }
+                for (let row = emptyCell; row >= 0; row--) {
+                    board[row][col] = getRandomEmoji();
+                    const cell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+                    cell.classList.add('falling');
+                    cell.textContent = board[row][col];
+                    setTimeout(() => {
+                        cell.classList.remove('falling');
+                    }, 500);
+                }
+            }
+            setTimeout(checkMatches, 500);
+        }
+
+        initBoard();
+    </script>
+</body>
+</html>
